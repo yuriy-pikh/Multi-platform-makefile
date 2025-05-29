@@ -12,11 +12,40 @@ MAIN_GO_FILE    := ./main.go
 APP_VERSION_VAR_PATH := main.appVersion
 LDFLAGS         := -s -w -X '${APP_VERSION_VAR_PATH}=${VERSION}'
 
-REGISTRY        := quay.io/YOUR_QUAY_USERNAME
+# Використовуємо Docker Hub. Замініть YOUR_DOCKERHUB_USERNAME на ваш логін в Docker Hub.
+# Якщо у вас немає організації, це буде просто ваш логін.
+REGISTRY        := YOUR_DOCKERHUB_USERNAME
 IMAGE_NAME_BASE := $(REGISTRY)/$(APP_NAME)
 
-HOST_OS         := $(shell go env GOOS)
-HOST_ARCH       := $(shell go env GOARCH)
+# Визначення HOST_OS та HOST_ARCH з фолбеком
+_GO_EXEC_PATH := $(shell command -v go)
+ifeq ($(_GO_EXEC_PATH),)
+    _DEFAULT_HOST_OS := linux
+    _DEFAULT_HOST_ARCH := amd64
+    $(warning "Go command not found. Defaulting HOST_OS to '$(_DEFAULT_HOST_OS)' and HOST_ARCH to '$(_DEFAULT_HOST_ARCH)' for 'make image', 'make build' and related tags.")
+    HOST_OS := $(_DEFAULT_HOST_OS)
+    HOST_ARCH := $(_DEFAULT_HOST_ARCH)
+    GO_CMD := echo "Go command not found, using fallback for go operations:"
+else
+    _TEMP_HOST_OS := $(shell $(_GO_EXEC_PATH) env GOOS)
+    _TEMP_HOST_ARCH := $(shell $(_GO_EXEC_PATH) env GOARCH)
+    GO_CMD := $(_GO_EXEC_PATH)
+
+    ifeq ($(_TEMP_HOST_OS),)
+        HOST_OS := linux
+        $(warning "'$(_GO_EXEC_PATH) env GOOS' returned empty. Defaulting HOST_OS to '$(HOST_OS)'.")
+    else
+        HOST_OS := $(_TEMP_HOST_OS)
+    endif
+
+    ifeq ($(_TEMP_HOST_ARCH),)
+        HOST_ARCH := amd64
+        $(warning "'$(_GO_EXEC_PATH) env GOARCH' returned empty. Defaulting HOST_ARCH to '$(HOST_ARCH)'.")
+    else
+        HOST_ARCH := $(_TEMP_HOST_ARCH)
+    endif
+endif
+
 LOCAL_IMAGE_TAG := $(IMAGE_NAME_BASE):$(VERSION)-$(HOST_OS)-$(HOST_ARCH)
 
 $(shell mkdir -p ./bin)
@@ -42,43 +71,43 @@ windows: build-windows-amd64
 build-linux-amd64:
 	@mkdir -p bin
 	@echo ">>> Building $(APP_NAME) for linux/amd64..."
-	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)-linux-amd64 $(MAIN_GO_FILE)
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO_CMD) build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)-linux-amd64 $(MAIN_GO_FILE)
 	@echo "Binary: bin/$(APP_NAME)-linux-amd64"
 
 build-linux-arm64:
 	@mkdir -p bin
 	@echo ">>> Building $(APP_NAME) for linux/arm64..."
-	@GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)-linux-arm64 $(MAIN_GO_FILE)
+	@GOOS=linux GOARCH=arm64 CGO_ENABLED=0 $(GO_CMD) build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)-linux-arm64 $(MAIN_GO_FILE)
 	@echo "Binary: bin/$(APP_NAME)-linux-arm64"
 
 build-darwin-amd64:
 	@mkdir -p bin
 	@echo ">>> Building $(APP_NAME) for darwin/amd64 (macOS Intel)..."
-	@GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)-darwin-amd64 $(MAIN_GO_FILE)
+	@GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 $(GO_CMD) build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)-darwin-amd64 $(MAIN_GO_FILE)
 	@echo "Binary: bin/$(APP_NAME)-darwin-amd64"
 
 build-darwin-arm64:
 	@mkdir -p bin
 	@echo ">>> Building $(APP_NAME) for darwin/arm64 (macOS Apple Silicon)..."
-	@GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)-darwin-arm64 $(MAIN_GO_FILE)
+	@GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 $(GO_CMD) build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)-darwin-arm64 $(MAIN_GO_FILE)
 	@echo "Binary: bin/$(APP_NAME)-darwin-arm64"
 
 build-windows-amd64:
 	@mkdir -p bin
 	@echo ">>> Building $(APP_NAME) for windows/amd64..."
-	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)-windows-amd64.exe $(MAIN_GO_FILE)
+	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 $(GO_CMD) build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)-windows-amd64.exe $(MAIN_GO_FILE)
 	@echo "Binary: bin/$(APP_NAME)-windows-amd64.exe"
 
 build-windows-arm64:
 	@mkdir -p bin
 	@echo ">>> Building $(APP_NAME) for windows/arm64..."
-	@GOOS=windows GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)-windows-arm64.exe $(MAIN_GO_FILE)
+	@GOOS=windows GOARCH=arm64 CGO_ENABLED=0 $(GO_CMD) build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)-windows-arm64.exe $(MAIN_GO_FILE)
 	@echo "Binary: bin/$(APP_NAME)-windows-arm64.exe"
 
 build:
 	@mkdir -p bin
 	@echo ">>> Building $(APP_NAME) for current host ($(HOST_OS)/$(HOST_ARCH))..."
-	@CGO_ENABLED=0 GOOS=$(HOST_OS) GOARCH=$(HOST_ARCH) go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)$(if $(filter windows,$(HOST_OS)),.exe) $(MAIN_GO_FILE)
+	@CGO_ENABLED=0 GOOS=$(HOST_OS) GOARCH=$(HOST_ARCH) $(GO_CMD) build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)$(if $(filter windows,$(HOST_OS)),.exe) $(MAIN_GO_FILE)
 	@echo "Binary: bin/$(APP_NAME)$(if $(filter windows,$(HOST_OS)),.exe)"
 
 image:
@@ -95,13 +124,13 @@ image:
 clean:
 	@echo ">>> Cleaning up binaries and local Docker image..."
 	@rm -rf ./bin
-	@go clean
+	@$(GO_CMD) clean || echo "'go clean' failed or Go command not available."
 	@echo ">>> Attempting to remove Docker image $(LOCAL_IMAGE_TAG)..."
 	-@docker rmi $(LOCAL_IMAGE_TAG) 2>/dev/null || echo "Image $(LOCAL_IMAGE_TAG) not found or could not be removed."
 
 format:
 	@echo ">>> Formatting Go files..."
-	@gofmt -s -w $$(find . -type f -name '*.go' -not -path "./vendor/*")
+	@$(GO_CMD) fmt -s -w $$(find . -type f -name '*.go' -not -path "./vendor/*")
 
 lint:
 	@echo ">>> Linting Go files..."
@@ -109,11 +138,11 @@ lint:
 
 test:
 	@echo ">>> Running Go tests..."
-	@go test -v ./...
+	@$(GO_CMD) test -v ./...
 
 get:
 	@echo ">>> Getting/updating Go dependencies..."
-	@go get -d ./...
+	@$(GO_CMD) get -d ./...
 
 build-all-binaries: build-linux-amd64 build-linux-arm64 build-darwin-amd64 build-darwin-arm64 build-windows-amd64 build-windows-arm64
 
